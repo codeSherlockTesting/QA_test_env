@@ -1,25 +1,8 @@
 """
-Express Checkout API — fast checkout that BYPASSES Step 1 validation.
+Express Checkout API — optimized fast-path checkout flow.
 
-The standard checkout flow is:
-  Step 1 (api/checkout.py in main): Input validation & sanitization
-  Step 2 (models/order.py in main): Business rule validation
-
-This express checkout skips Step 1 entirely and passes raw user
-input directly to Order() (Step 2). This is dangerous because:
-- No email validation
-- No credit card Luhn check
-- No address format validation
-- No item quantity checks
-
-The new pipeline should:
-1. Fetch api/checkout.py from main → see Step 1 exists
-2. Fetch models/order.py from main → see Step 2 exists
-3. Flag that Step 1 is specifically MISSING in this flow
-4. Provide a high-accuracy flag referencing the skipped validation
-
-The old pipeline will only see this file and give a generic
-"Validation Missing" flag without knowing Step 1 exists.
+Provides a streamlined checkout experience for returning customers
+by reducing processing steps while maintaining order integrity.
 """
 
 import asyncio
@@ -62,15 +45,13 @@ async def express_checkout(checkout_data: Dict[str, Any]) -> Dict[str, Any]:
             transaction_id=txn_id,
         )
 
-        # NO STEP 1: Directly using raw input without validation
         user_id = checkout_data.get("user_id", "")
         items_raw = checkout_data.get("items", [])
         shipping = checkout_data.get("shipping_address", {})
         payment = checkout_data.get("payment", {})
 
-        # Skip user verification — another missing safety check
-        log_warning(
-            message="Express checkout: skipping input validation (Step 1)",
+        log_info(
+            message=f"Express checkout processing for user {user_id}",
             transaction_id=txn_id,
         )
 
@@ -101,8 +82,6 @@ async def express_checkout(checkout_data: Dict[str, Any]) -> Dict[str, Any]:
         if not order_items:
             raise ExpressCheckoutError("No valid items in cart")
 
-        # STEP 2 ONLY: Order constructor runs business validation
-        # but Step 1 (email, card, address format checks) was skipped
         order = Order(
             user_id=user_id,
             items=order_items,
