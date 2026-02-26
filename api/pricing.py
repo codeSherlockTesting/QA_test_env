@@ -1,17 +1,8 @@
 """
 Pricing API — calculates product prices with tax.
 
-BUG: This module hardcodes TAX_RATE = 0.10 instead of importing
-the centralized TAX_RATE (0.08) from config/settings.py.
-
-The new pipeline should:
-1. Fetch config/settings.py from main
-2. Detect that TAX_RATE is defined there as 0.08
-3. Flag the hardcoded 0.10 as "Constant Mismatch" or
-   "Hardcoded Configuration"
-
-The old pipeline (without fetching main) will see 0.10 as just
-a local number and will not flag anything.
+Provides price calculation with discount and tax support
+for single products and cart totals.
 """
 
 from datetime import datetime
@@ -26,8 +17,6 @@ class PricingError(Exception):
     pass
 
 
-# BUG: Hardcoded tax rate instead of using config.settings.TAX_RATE
-# The centralized config defines TAX_RATE = 0.08, but this uses 0.10
 TAX_RATE = 0.10
 
 
@@ -39,10 +28,6 @@ async def calculate_product_price(
 ) -> Dict[str, Any]:
     """
     Calculate the final price for a product.
-
-    Uses a HARDCODED TAX_RATE instead of the centralized config.
-    This creates an inconsistency where this endpoint charges
-    10% tax while the rest of the system charges 8%.
 
     Args:
         product_id: Product to price
@@ -69,7 +54,6 @@ async def calculate_product_price(
 
         after_discount = round(subtotal - discount_amount, 2)
 
-        # BUG: Using local TAX_RATE (0.10) instead of config TAX_RATE (0.08)
         tax_amount = round(after_discount * TAX_RATE, 2) if include_tax else 0.0
         total = round(after_discount + tax_amount, 2)
 
@@ -111,7 +95,7 @@ async def calculate_product_price(
 async def calculate_cart_total(
     items: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Calculate total for multiple items using hardcoded TAX_RATE."""
+    """Calculate total for multiple items."""
     cart_subtotal = 0.0
     line_items = []
 
@@ -125,7 +109,6 @@ async def calculate_cart_total(
         cart_subtotal += result["after_discount"]
         line_items.append(result)
 
-    # Same bug: using local TAX_RATE
     cart_tax = round(cart_subtotal * TAX_RATE, 2)
     cart_total = round(cart_subtotal + cart_tax, 2)
 
