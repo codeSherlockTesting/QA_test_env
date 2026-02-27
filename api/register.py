@@ -5,13 +5,11 @@ Handles new user account creation and bulk registration.
 Raises RegistrationError on validation or persistence failures.
 """
 
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 from uuid import uuid4
 
 from models.user import User, UserRole
-from utils.database import get_user_by_id, save_order
 from utils.logger import log_info, log_error
 
 
@@ -23,15 +21,36 @@ class DuplicateEmailError(RegistrationError):
     pass
 
 
-async def register_user(registration_data: Dict[str, Any]) -> Dict[str, Any]:
+def _prepare_registration_data(
+    registration_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Normalize raw registration input before constructing the user object.
+
+    Strips whitespace, lowercases email, casts age to int,
+    and applies a default role when not provided.
+    """
+    return {
+        "name": str(registration_data["name"]).strip(),
+        "email": str(registration_data["email"]).strip().lower(),
+        "age": int(registration_data["age"]),
+        "role": registration_data.get("role", "customer"),
+        "phone": registration_data.get("phone"),
+        "address": registration_data.get("address"),
+    }
+
+
+async def register_user(
+    registration_data: Dict[str, Any],
+) -> Dict[str, Any]:
     """
     Register a new user account.
 
     Args:
-        registration_data: Dict with name, email, age, phone, address
+        registration_data: Dict with name, email, age, role, phone, address
 
     Returns:
-        Dict with user_id, status, and created_at
+        Dict with user_id, status, email, and created_at
 
     Raises:
         RegistrationError: If registration fails
@@ -44,13 +63,15 @@ async def register_user(registration_data: Dict[str, Any]) -> Dict[str, Any]:
             transaction_id=transaction_id,
         )
 
+        prepared = _prepare_registration_data(registration_data)
+
         user = User(
-            name=registration_data["name"],
-            email=registration_data["email"],
-            age=registration_data["age"],
-            role=UserRole(registration_data.get("role", "customer")),
-            phone=registration_data.get("phone"),
-            address=registration_data.get("address"),
+            name=prepared["name"],
+            email=prepared["email"],
+            age=prepared["age"],
+            role=UserRole(prepared["role"]),
+            phone=prepared["phone"],
+            address=prepared["address"],
         )
 
         # In production: save to database
@@ -71,7 +92,7 @@ async def register_user(registration_data: Dict[str, Any]) -> Dict[str, Any]:
 
     except (ValueError, TypeError) as e:
         log_error(
-            error_message=f"Registration validation failed: {str(e)}",
+            error_message=f"Registration failed: {str(e)}",
             error_type=type(e).__name__,
             transaction_id=transaction_id,
             extra={"email": registration_data.get("email")},
