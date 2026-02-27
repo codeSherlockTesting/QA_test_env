@@ -1,13 +1,8 @@
 """
 User Registration API endpoint.
 
-Implements user registration by creating a User instance.
-The User class constructor (in models/user.py on main branch)
-already enforces strict validation including Age >= 18.
-
-This file does NOT include its own validation because the
-model layer handles it. The new pipeline should recognize this
-pattern and NOT flag "missing validation."
+Handles new user account creation and bulk registration.
+Raises RegistrationError on validation or persistence failures.
 """
 
 import asyncio
@@ -32,15 +27,6 @@ async def register_user(registration_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Register a new user account.
 
-    The User() constructor handles all input validation:
-    - Name: 2-100 chars, non-empty
-    - Email: valid format with @ and domain
-    - Age: must be >= 18 (legal requirement)
-    - Role: valid UserRole enum
-
-    No additional validation is needed here because the model
-    enforces constraints at construction time.
-
     Args:
         registration_data: Dict with name, email, age, phone, address
 
@@ -49,7 +35,6 @@ async def register_user(registration_data: Dict[str, Any]) -> Dict[str, Any]:
 
     Raises:
         RegistrationError: If registration fails
-        ValueError: If User constructor validation fails
     """
     transaction_id = f"reg_{uuid4().hex[:10]}"
 
