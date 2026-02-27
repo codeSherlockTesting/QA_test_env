@@ -1,12 +1,8 @@
 """
-Tax calculation utilities.
+Tax calculation utilities for regional invoice pricing.
 
-Included in the PR alongside api/billing.py.
-Uses TAX_RATE from config/settings.py (main branch).
-
-The pipeline should validate the data flow chain:
-  billing.py → tax.py → config/settings.py
-  billing.py → database.py (ORDER_SCHEMA)
+Applies state-specific tax rates where available, falling back
+to the globally configured default rate for unrecognized regions.
 """
 
 from typing import Dict, Any
@@ -14,7 +10,6 @@ from typing import Dict, Any
 from config.settings import TAX_RATE
 
 
-# State-level tax overrides (some states have different rates)
 STATE_TAX_RATES = {
     "CA": 0.0725,
     "NY": 0.08,
@@ -29,13 +24,15 @@ STATE_TAX_RATES = {
 
 
 def calculate_tax(
-    subtotal: float, shipping_address: Dict[str, str]
+    subtotal: float,
+    shipping_address: Dict[str, str],
 ) -> float:
     """
-    Calculate tax amount based on shipping address.
+    Calculate the tax amount for a given subtotal and shipping location.
 
-    Uses state-specific rates where available, falls back to
-    the global TAX_RATE from config/settings.py.
+    Uses the state code from the address to apply a state-specific rate.
+    Falls back to the global TAX_RATE constant for states not in the table.
+    Returns 0.0 for zero or negative subtotals.
     """
     if subtotal <= 0:
         return 0.0
@@ -47,14 +44,24 @@ def calculate_tax(
 
 
 def get_tax_breakdown(
-    subtotal: float, shipping_address: Dict[str, str]
+    subtotal: float,
+    shipping_address: Dict[str, str],
 ) -> Dict[str, Any]:
     """
-    Get detailed tax breakdown with rate source.
+    Return a detailed breakdown of the tax calculation for an order.
 
-    Returns the rate used, whether it's state-specific or default,
-    and the calculated amount.
+    Indicates whether the rate was pulled from the state table or the
+    global config default, along with the final computed amount.
     """
+    if subtotal <= 0:
+        return {
+            "rate": 0.0,
+            "source": "zero_subtotal",
+            "state": "N/A",
+            "amount": 0.0,
+            "subtotal": subtotal,
+        }
+
     state = shipping_address.get("state", "").upper()
 
     if state in STATE_TAX_RATES:
